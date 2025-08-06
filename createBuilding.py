@@ -213,7 +213,7 @@ if building.asset_data:
     
     # Set description
     image_name = os.path.basename("{image_path}")
-    building.asset_data.description = f"3D building generated from facade image: {{image_name}}. Dimensions: {{building_width:.1f}}m x {{building_depth:.1f}}m"
+    building.asset_data.description = f"3D building generated from facade image: {{image_name}}. Dimensions: {width:.1f}m x {depth:.1f}m"
     
     # Set author (optional - can be customized)
     building.asset_data.author = "Building Generator"

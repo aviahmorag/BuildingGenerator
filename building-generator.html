@@ -1065,49 +1065,44 @@
                 document.getElementById('generateBtn').disabled = true;
                 
                 try {
-                    // Convert data URL to blob
-                    const response = await fetch(this.imageDataUrl);
-                    const blob = await response.blob();
+                    // Send request to server
+                    const requestData = {
+                        image: this.imageDataUrl,
+                        width: width,
+                        depth: depth,
+                        output: outputFileName
+                    };
                     
-                    // Create a temporary file name
-                    const tempFileName = `temp_facade_${Date.now()}.png`;
+                    const response = await fetch('http://localhost:5555/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestData)
+                    });
                     
-                    // Create form data
-                    const formData = new FormData();
-                    formData.append('image', blob, tempFileName);
-                    formData.append('width', width);
-                    formData.append('depth', depth);
-                    formData.append('output', outputFileName);
+                    const result = await response.json();
                     
-                    // Call the Python script via a server endpoint
-                    // Note: This requires a server to handle the request
-                    // For now, we'll save the image and show instructions
-                    
-                    // Save the processed image
-                    const link = document.createElement('a');
-                    link.download = tempFileName;
-                    link.href = this.imageDataUrl;
-                    link.click();
-                    
-                    // Update log with instructions
-                    const logText = `
-Image saved as: ${tempFileName}
-
-To generate the Blender file, run:
-python createBuilding.py ${tempFileName} --width ${width} --depth ${depth} --output ${outputFileName}
-
-Make sure you have:
-1. Blender installed
-2. Python 3 installed
-3. The createBuilding.py script in your current directory
-                    `.trim();
-                    
-                    document.getElementById('outputLog').textContent = logText;
-                    this.showGenerateStatus('Image saved! Follow the instructions above to generate the Blender file.', 'success');
+                    if (result.success) {
+                        document.getElementById('outputLog').textContent = result.log || `Success! Building saved to Downloads folder as ${outputFileName}`;
+                        this.showGenerateStatus(`✅ Building generated successfully! Check your Downloads folder for ${outputFileName}`, 'success');
+                        
+                        // If blend_data is provided (for small files), offer download
+                        if (result.blend_data) {
+                            const link = document.createElement('a');
+                            link.download = outputFileName;
+                            link.href = 'data:application/octet-stream;base64,' + result.blend_data;
+                            link.click();
+                        }
+                    } else {
+                        const errorDetails = result.stdout || result.stderr || '';
+                        document.getElementById('outputLog').textContent = `Error: ${result.error}\n\n${errorDetails}`;
+                        this.showGenerateStatus('Error generating building. Check the log above for details.', 'error');
+                    }
                     
                 } catch (error) {
-                    document.getElementById('outputLog').textContent = `Error: ${error.message}`;
-                    this.showGenerateStatus('Error generating building. Please try again.', 'error');
+                    document.getElementById('outputLog').textContent = `Connection error: ${error.message}\n\nMake sure the server is running (launch.sh or building_generator_server.py)`;
+                    this.showGenerateStatus('Error: Could not connect to server. Is it running?', 'error');
                 } finally {
                     document.getElementById('generateBtn').disabled = false;
                     setTimeout(() => {

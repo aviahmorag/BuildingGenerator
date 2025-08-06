@@ -128,9 +128,13 @@ def generate_building():
             if result.returncode != 0:
                 error_msg = result.stderr or result.stdout or 'Failed to generate building'
                 print(f"Error: {error_msg}")
+                print(f"STDOUT: {result.stdout}")
+                print(f"STDERR: {result.stderr}")
                 return jsonify({
                     'success': False,
-                    'error': error_msg
+                    'error': error_msg,
+                    'stdout': result.stdout,
+                    'stderr': result.stderr
                 }), 500
             
             # Check if the blend file was created
