@@ -200,46 +200,18 @@ def create_building_from_facade(image_path, building_width={width}, building_dep
 # Create the building
 building = create_building_from_facade("{image_path}", {width}, {depth})
 
-# Mark the building as an asset for Asset Library
-building.asset_mark()
-
-# Add asset metadata
-if building.asset_data:
-    # Set asset tags for easier searching
-    building.asset_data.tags.new("Building")
-    building.asset_data.tags.new("Architecture")
-    building.asset_data.tags.new("Facade")
-    building.asset_data.tags.new("Textured")
-    
-    # Set description
-    image_name = os.path.basename("{image_path}")
-    building.asset_data.description = f"3D building generated from facade image: {{image_name}}. Dimensions: {width:.1f}m x {depth:.1f}m"
-    
-    # Set author (optional - can be customized)
-    building.asset_data.author = "Building Generator"
-
-# Set a custom preview if needed (optional - Blender will auto-generate one)
-# The auto-generated preview is usually sufficient for buildings
-
-# Ensure the building is selected and active for preview generation
-bpy.context.view_layer.objects.active = building
-building.select_set(True)
-
-# Set viewport shading to Material Preview for better visual
+# Set viewport shading to Material Preview
 for area in bpy.context.screen.areas:
     if area.type == 'VIEW_3D':
         for space in area.spaces:
             if space.type == 'VIEW_3D':
                 space.shading.type = 'MATERIAL'
-                # Frame the building in view for better preview
-                bpy.ops.view3d.view_selected()
                 break
 
 # Save the file
 output_path = "{output_path}"
 bpy.ops.wm.save_as_mainfile(filepath=output_path)
 print(f"Saved: {{output_path}}")
-print(f"Asset ready for library: {{building.name}}")
 '''
 
 def find_blender():
@@ -351,8 +323,6 @@ def create_building(image_path, output_path=None, width=12, depth=12, blender_pa
                 # Extract and show the dimension line
                 for line in result.stdout.split('\n'):
                     if 'Dimensions:' in line:
-                        print(line)
-                    if 'Asset ready' in line:
                         print(line)
             print(f"✓ Successfully created: {output_path}")
             return True
