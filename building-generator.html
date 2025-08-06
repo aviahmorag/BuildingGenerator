@@ -1065,6 +1065,14 @@
                 document.getElementById('generateBtn').disabled = true;
                 
                 try {
+                    // Save the rectified facade image with proper name
+                    const baseFileName = outputFileName.replace('.blend', '');
+                    const rectifiedImageName = `${baseFileName}-rect.png`;
+                    const imageLink = document.createElement('a');
+                    imageLink.download = rectifiedImageName;
+                    imageLink.href = this.imageDataUrl;
+                    imageLink.click();
+                    
                     // Send request to server
                     const requestData = {
                         image: this.imageDataUrl,
