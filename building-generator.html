@@ -1078,7 +1078,8 @@
                         image: this.imageDataUrl,
                         width: width,
                         depth: depth,
-                        output: outputFileName
+                        output: outputFileName,
+                        originalFileName: this.originalFileName
                     };
                     
                     const response = await fetch('http://localhost:5555/generate', {

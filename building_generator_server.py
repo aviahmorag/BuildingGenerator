@@ -76,6 +76,7 @@ def generate_building():
         width = data.get('width', 12)
         depth = data.get('depth', 12)
         output_name = data.get('output', 'building.blend')
+        original_filename = data.get('originalFileName', 'facade.png')
         
         # Ensure output name has .blend extension
         if not output_name.endswith('.blend'):
@@ -87,8 +88,8 @@ def generate_building():
         
         # Create temp directory for image
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Save the image from base64
-            image_path = os.path.join(temp_dir, 'facade.png')
+            # Save the image from base64 - use original filename to preserve name for Blender object
+            image_path = os.path.join(temp_dir, original_filename if original_filename else 'facade.png')
             
             # Remove data URL prefix if present
             if ',' in image_data:
