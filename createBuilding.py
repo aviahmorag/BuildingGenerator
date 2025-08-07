@@ -42,6 +42,9 @@ def create_building_from_facade(image_path, building_width={width}, building_dep
     # Pack the image into the blend file to remove external dependency
     img.pack()
     
+    # Get the output filename (without .blend extension) for naming
+    output_name = os.path.splitext(os.path.basename("{output_path}"))[0]
+    
     # Get image dimensions to calculate aspect ratio
     img_width = img.size[0]
     img_height = img.size[1]
@@ -54,7 +57,7 @@ def create_building_from_facade(image_path, building_width={width}, building_dep
     print(f"Dimensions: width={{building_width:.1f}}m, height={{building_height:.1f}}m")
     
     # Create a collection for the building first
-    collection_name = "Building_" + image_name.split('.')[0]
+    collection_name = "Building_" + output_name
     building_collection = bpy.data.collections.new(name=collection_name)
     bpy.context.scene.collection.children.link(building_collection)
     
@@ -70,7 +73,7 @@ def create_building_from_facade(image_path, building_width={width}, building_dep
     
     building = bpy.context.active_object
     # Use the full name for the mesh object since it's the asset
-    building.name = "Building_" + image_name.split('.')[0]
+    building.name = "Building_" + output_name
     
     # Scale the cube to building dimensions
     building.scale = (building_width/2, building_depth/2, building_height/2)
@@ -206,7 +209,7 @@ def create_building_from_facade(image_path, building_width={width}, building_dep
             face.material_index = 0
     
     # Get the collection reference and mark it as an asset
-    collection_name = "Building_" + image_name.split('.')[0]
+    collection_name = "Building_" + output_name
     building_collection = bpy.data.collections.get(collection_name)
     
     if building_collection:
