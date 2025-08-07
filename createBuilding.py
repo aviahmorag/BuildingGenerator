@@ -53,13 +53,23 @@ def create_building_from_facade(image_path, building_width={width}, building_dep
     # Print the actual dimensions
     print(f"Dimensions: width={{building_width:.1f}}m, height={{building_height:.1f}}m")
     
-    # Create the building mesh
+    # Create a collection for the building first
+    collection_name = "Building_" + image_name.split('.')[0]
+    building_collection = bpy.data.collections.new(name=collection_name)
+    bpy.context.scene.collection.children.link(building_collection)
+    
+    # Set the new collection as active
+    layer_collection = bpy.context.view_layer.layer_collection.children[building_collection.name]
+    bpy.context.view_layer.active_layer_collection = layer_collection
+    
+    # Create the building mesh in the new collection
     bpy.ops.mesh.primitive_cube_add(
         size=2,
         location=(0, 0, 0)  # Create at origin first
     )
     
     building = bpy.context.active_object
+    # Use the full name for the mesh object since it's the asset
     building.name = "Building_" + image_name.split('.')[0]
     
     # Scale the cube to building dimensions
@@ -195,27 +205,32 @@ def create_building_from_facade(image_path, building_width={width}, building_dep
         else:
             face.material_index = 0
     
-    # Mark the building as an asset
-    building.asset_mark()
+    # Get the collection reference and mark it as an asset
+    collection_name = "Building_" + image_name.split('.')[0]
+    building_collection = bpy.data.collections.get(collection_name)
     
-    # Generate asset preview for the Asset Browser
-    # This ensures the asset has a proper preview icon instead of generic document icon
-    # Note: Preview generation may not work in background mode, but will generate when file is opened
-    try:
-        bpy.context.view_layer.objects.active = building
-        building.select_set(True)
-        # Try to generate preview - this may fail in background mode
-        bpy.ops.ed.lib_id_generate_preview()
-    except:
-        # Preview generation failed (likely in background mode), it will be generated when file is opened
-        pass
+    if building_collection:
+        # Clear any existing asset data first
+        if hasattr(building_collection, 'asset_data'):
+            building_collection.asset_clear()
+        
+        # Mark the collection as an asset
+        building_collection.asset_mark()
+        
+        # Force preview generation - this is the key!
+        building_collection.asset_generate_preview()
     
     return building
 
 # Create the building
 building = create_building_from_facade("{image_path}", {width}, {depth})
 
-# Set viewport shading to Material Preview
+# Remove the default empty collection if it exists and is empty
+default_collection = bpy.context.scene.collection.children.get("Collection")
+if default_collection and len(default_collection.objects) == 0:
+    bpy.context.scene.collection.children.unlink(default_collection)
+
+# Set viewport shading to Material Preview for better visualization
 for area in bpy.context.screen.areas:
     if area.type == 'VIEW_3D':
         for space in area.spaces:
