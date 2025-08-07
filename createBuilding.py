@@ -195,6 +195,21 @@ def create_building_from_facade(image_path, building_width={width}, building_dep
         else:
             face.material_index = 0
     
+    # Mark the building as an asset
+    building.asset_mark()
+    
+    # Generate asset preview for the Asset Browser
+    # This ensures the asset has a proper preview icon instead of generic document icon
+    # Note: Preview generation may not work in background mode, but will generate when file is opened
+    try:
+        bpy.context.view_layer.objects.active = building
+        building.select_set(True)
+        # Try to generate preview - this may fail in background mode
+        bpy.ops.ed.lib_id_generate_preview()
+    except:
+        # Preview generation failed (likely in background mode), it will be generated when file is opened
+        pass
+    
     return building
 
 # Create the building
