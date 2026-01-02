@@ -1,6 +1,12 @@
-# 🏢 Building Generator
+# Building Generator
 
-Transform facade images into 3D Blender buildings with a simple web interface!
+Transform facade images into 3D Blender buildings with a simple web interface.
+
+## Example
+
+| Original Photo | Rectified | 3D Model in Blender |
+|:--------------:|:---------:|:-------------------:|
+| ![Before](before.jpeg) | ![After](after.png) | ![Blender](blender.png) |
 
 ## Features
 
@@ -31,13 +37,7 @@ The tool will automatically open in your browser at http://localhost:5555
 
 1. **Python 3** - Usually pre-installed on Mac/Linux
 2. **Flask** - Will be installed automatically on first run
-3. **Blender** - Required for generating 3D models
-   - Download from: https://www.blender.org/download/
-   - Mac: After installing, add to PATH:
-     ```bash
-     echo 'export PATH="/Applications/Blender.app/Contents/MacOS:$PATH"' >> ~/.zshrc
-     source ~/.zshrc
-     ```
+3. **Blender** - Download from https://www.blender.org/download/
 
 ## How It Works
 
@@ -58,9 +58,7 @@ The tool will automatically open in your browser at http://localhost:5555
 ## Troubleshooting
 
 ### "Blender not found"
-- Make sure Blender is installed
-- Add Blender to your system PATH
-- On Mac, Blender is usually at `/Applications/Blender.app/Contents/MacOS/`
+Click **Settings** in the web interface and select your Blender application.
 
 ### "Flask not installed"
 Run:
@@ -73,4 +71,4 @@ Edit `building_generator_server.py` and change the port number in the last line.
 
 ## License
 
-© 2025 Aviah Morag
+MIT License - see [LICENSE](LICENSE) for details.

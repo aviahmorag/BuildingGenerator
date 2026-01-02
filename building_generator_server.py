@@ -16,9 +16,85 @@ import webbrowser
 import threading
 import time
 import sys
+import json
 
 app = Flask(__name__)
 CORS(app)
+
+# Config file in same directory as script
+CONFIG_FILE = Path(__file__).parent / 'config.json'
+
+def load_config():
+    """Load configuration from file."""
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
+
+def save_config(config):
+    """Save configuration to file."""
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(config, f, indent=2)
+
+def find_blender():
+    """Find Blender executable on the system."""
+    # First check config
+    config = load_config()
+    if config.get('blender_path') and os.path.exists(config['blender_path']):
+        return config['blender_path']
+
+    # Common Blender installation paths
+    possible_paths = [
+        # macOS
+        "/Applications/Blender.app/Contents/MacOS/Blender",
+        "/Applications/Blender.app/Contents/MacOS/blender",
+        # Linux
+        "/usr/bin/blender",
+        "/usr/local/bin/blender",
+        "/snap/bin/blender",
+        # Windows
+        "C:\\Program Files\\Blender Foundation\\Blender\\blender.exe",
+        "C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe",
+        "C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe",
+        "C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe",
+        "C:\\Program Files\\Blender Foundation\\Blender 3.6\\blender.exe",
+    ]
+
+    # Check if blender is in PATH
+    try:
+        if sys.platform == "win32":
+            result = subprocess.run(["where", "blender"], capture_output=True, text=True)
+        else:
+            result = subprocess.run(["which", "blender"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip().split('\n')[0]
+    except:
+        pass
+
+    # Check common paths
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+
+    return None
+
+def get_blender_version(blender_path):
+    """Get Blender version string."""
+    try:
+        result = subprocess.run(
+            [blender_path, '--version'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            return result.stdout.split('\n')[0]
+    except:
+        pass
+    return None
 
 # Serve the HTML file
 @app.route('/')
@@ -109,12 +185,21 @@ def generate_building():
                     'error': f'createBuilding.py not found at {script_path}'
                 }), 500
             
+            # Find Blender path
+            blender_path = find_blender()
+            if not blender_path:
+                return jsonify({
+                    'success': False,
+                    'error': 'Blender not found. Please configure the Blender path in Settings.'
+                }), 500
+
             cmd = [
                 sys.executable, str(script_path),
                 image_path,
                 '--width', str(width),
                 '--depth', str(depth),
-                '--output', str(output_path)
+                '--output', str(output_path),
+                '--blender-path', blender_path
             ]
             
             print(f"Running command: {' '.join(cmd)}")
@@ -179,40 +264,182 @@ def generate_building():
 
 @app.route('/health')
 def health():
-    # Check if Blender is available - check common paths
-    blender_paths = [
-        '/Applications/Blender.app/Contents/MacOS/Blender',
-        '/Applications/Blender.app/Contents/MacOS/blender',
-        'blender'
-    ]
-    
-    blender_available = False
-    blender_version = 'Not found'
-    
-    for blender_cmd in blender_paths:
-        try:
-            result = subprocess.run(
-                [blender_cmd, '--version'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                blender_available = True
-                blender_version = result.stdout.split('\n')[0]
-                break
-        except:
-            continue
-    
+    # Check if Blender is available using our find function
+    blender_path = find_blender()
+    blender_available = blender_path is not None
+    blender_version = get_blender_version(blender_path) if blender_path else 'Not found'
+
     # Check if createBuilding.py exists
     script_exists = (Path(__file__).parent / 'createBuilding.py').exists()
-    
+
     return jsonify({
         'status': 'running',
         'blender_available': blender_available,
+        'blender_path': blender_path,
         'blender_version': blender_version,
         'script_exists': script_exists
     })
+
+@app.route('/config', methods=['GET'])
+def get_config():
+    """Get current configuration."""
+    config = load_config()
+    blender_path = find_blender()
+    blender_version = get_blender_version(blender_path) if blender_path else None
+
+    return jsonify({
+        'blender_path': config.get('blender_path', ''),
+        'detected_blender_path': blender_path,
+        'blender_version': blender_version,
+        'blender_available': blender_path is not None
+    })
+
+@app.route('/config', methods=['POST'])
+def set_config():
+    """Save configuration."""
+    data = request.json
+    config = load_config()
+
+    if 'blender_path' in data:
+        path = data['blender_path']
+        # Validate the path
+        if path and not os.path.exists(path):
+            return jsonify({'success': False, 'error': 'Path does not exist'}), 400
+        config['blender_path'] = path
+
+    save_config(config)
+
+    # Return updated status
+    blender_path = find_blender()
+    blender_version = get_blender_version(blender_path) if blender_path else None
+
+    return jsonify({
+        'success': True,
+        'blender_path': config.get('blender_path', ''),
+        'detected_blender_path': blender_path,
+        'blender_version': blender_version,
+        'blender_available': blender_path is not None
+    })
+
+@app.route('/browse-blender', methods=['POST'])
+def browse_blender():
+    """Open native file dialog to select Blender executable."""
+    try:
+        filepath = None
+
+        if sys.platform == 'darwin':
+            # macOS - use AppleScript for native dialog
+            script = '''
+            tell application "System Events"
+                activate
+                set blenderApp to choose file with prompt "Select Blender Application" of type {"app", "public.unix-executable"} default location "/Applications"
+                return POSIX path of blenderApp
+            end tell
+            '''
+            result = subprocess.run(
+                ['osascript', '-e', script],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                filepath = result.stdout.strip()
+            elif 'User canceled' in result.stderr:
+                return jsonify({'success': False, 'cancelled': True})
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.stderr.strip() or 'Dialog was cancelled'
+                }), 400
+
+        elif sys.platform == 'win32':
+            # Windows - use PowerShell for native dialog
+            script = '''
+            Add-Type -AssemblyName System.Windows.Forms
+            $dialog = New-Object System.Windows.Forms.OpenFileDialog
+            $dialog.Title = "Select Blender Application"
+            $dialog.Filter = "Blender|blender.exe|All files|*.*"
+            $dialog.InitialDirectory = "C:\\Program Files\\Blender Foundation"
+            if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                Write-Output $dialog.FileName
+            }
+            '''
+            result = subprocess.run(
+                ['powershell', '-Command', script],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                filepath = result.stdout.strip()
+            else:
+                return jsonify({'success': False, 'cancelled': True})
+
+        else:
+            # Linux - try zenity, kdialog, or fallback
+            for cmd in [
+                ['zenity', '--file-selection', '--title=Select Blender', '--file-filter=*.* | *'],
+                ['kdialog', '--getopenfilename', '/usr/bin', '*']
+            ]:
+                try:
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                    if result.returncode == 0 and result.stdout.strip():
+                        filepath = result.stdout.strip()
+                        break
+                except FileNotFoundError:
+                    continue
+
+            if not filepath:
+                return jsonify({
+                    'success': False,
+                    'error': 'No file dialog available. Please enter the path manually.'
+                }), 500
+
+        if not filepath:
+            return jsonify({'success': False, 'cancelled': True})
+
+        # On macOS, if user selected .app, get the actual executable inside
+        if sys.platform == 'darwin' and filepath.endswith('.app'):
+            executable = os.path.join(filepath, 'Contents', 'MacOS', 'Blender')
+            if not os.path.exists(executable):
+                executable = os.path.join(filepath, 'Contents', 'MacOS', 'blender')
+            if os.path.exists(executable):
+                filepath = executable
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Could not find Blender executable inside the app bundle'
+                }), 400
+
+        # Validate it's actually Blender
+        version = get_blender_version(filepath)
+        if not version:
+            return jsonify({
+                'success': False,
+                'error': 'Selected file does not appear to be a valid Blender executable'
+            }), 400
+
+        # Save to config
+        config = load_config()
+        config['blender_path'] = filepath
+        save_config(config)
+
+        return jsonify({
+            'success': True,
+            'blender_path': filepath,
+            'blender_version': version
+        })
+
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Dialog timed out'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 def open_browser():
     """Open the browser after a short delay"""
@@ -232,27 +459,16 @@ if __name__ == '__main__':
         print("⚠️  WARNING: createBuilding.py not found!")
         print(f"   Expected at: {script_path}")
     
-    # Check for Blender in common locations
-    blender_found = False
-    blender_paths = [
-        '/Applications/Blender.app/Contents/MacOS/Blender',
-        '/Applications/Blender.app/Contents/MacOS/blender',
-        'blender'
-    ]
-    
-    for blender_cmd in blender_paths:
-        try:
-            result = subprocess.run([blender_cmd, '--version'], capture_output=True, timeout=2)
-            if result.returncode == 0:
-                print(f"✅ Blender found: {blender_cmd}")
-                blender_found = True
-                break
-        except:
-            continue
-    
-    if not blender_found:
-        print("⚠️  WARNING: Blender not found")
-        print("   Please install Blender from https://www.blender.org/download/")
+    # Check for Blender
+    blender_path = find_blender()
+    if blender_path:
+        version = get_blender_version(blender_path)
+        print(f"Blender found: {blender_path}")
+        if version:
+            print(f"  Version: {version}")
+    else:
+        print("WARNING: Blender not found")
+        print("  Configure it in Settings or install from https://www.blender.org/download/")
     
     print("-" * 60)
     print("Opening browser at: http://localhost:5555")

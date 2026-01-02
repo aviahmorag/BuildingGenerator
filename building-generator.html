@@ -30,6 +30,8 @@
             padding: 30px;
             max-width: 1200px;
             width: 100%;
+            border: 3px solid transparent;
+            transition: all 0.3s ease;
         }
 
         h1 {
@@ -387,11 +389,185 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Settings styles */
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .settings-btn {
+            background: #f0f0f0;
+            color: #666;
+            padding: 8px 16px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .settings-btn:hover {
+            background: #e0e0e0;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .settings-btn .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .settings-btn.blender-ok .status-dot {
+            background: #4caf50;
+        }
+
+        .settings-btn.blender-missing .status-dot {
+            background: #f44336;
+        }
+
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .settings-modal.active {
+            display: flex;
+        }
+
+        .settings-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .settings-header h2 {
+            color: #333;
+            margin: 0;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #999;
+            padding: 5px;
+        }
+
+        .close-btn:hover {
+            color: #333;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .setting-group {
+            margin-bottom: 20px;
+        }
+
+        .setting-group label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .blender-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .blender-status.found {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .blender-status.not-found {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .blender-status .status-icon {
+            font-size: 1.2em;
+        }
+
+        .blender-status .status-text {
+            flex: 1;
+        }
+
+        .blender-status .version {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+
+        .path-input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .path-input-group input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        .path-input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .browse-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            white-space: nowrap;
+        }
+
+        .save-path-btn {
+            background: #4caf50;
+            margin-top: 10px;
+        }
+
+        .setting-hint {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🏢 Building Generator</h1>
+        <div class="header-row">
+            <div></div>
+            <h1>Building Generator</h1>
+            <button class="settings-btn" id="settingsBtn"><span class="status-dot"></span>Settings</button>
+        </div>
         <p class="subtitle">Transform facade images into 3D Blender buildings with textures</p>
 
         <div class="workflow-tabs">
@@ -495,9 +671,29 @@
         </div>
 
         <div class="copyright">
-            © 2025 Aviah Morag<br>
-            Combines image rectification with 3D building generation<br>
             Powered by perspective transformation and Blender Python API
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="settings-modal" id="settingsModal">
+        <div class="settings-content">
+            <div class="settings-header">
+                <h2>Settings</h2>
+                <button class="close-btn" id="closeSettings">&times;</button>
+            </div>
+
+            <div class="setting-group">
+                <label>Blender Application</label>
+                <div class="blender-status not-found" id="blenderStatus">
+                    <span class="status-icon">?</span>
+                    <div class="status-text">
+                        <div>Checking...</div>
+                        <div class="version" id="blenderVersion"></div>
+                    </div>
+                </div>
+                <button class="browse-btn" id="browseBlender">Select Blender App</button>
+            </div>
         </div>
     </div>
 
@@ -532,21 +728,53 @@
                 
                 dropZone.addEventListener('click', () => fileInput.click());
                 
-                dropZone.addEventListener('dragover', (e) => {
+                // Global drag and drop on the entire container
+                const container = document.querySelector('.container');
+                
+                container.addEventListener('dragover', (e) => {
                     e.preventDefault();
-                    dropZone.classList.add('dragover');
+                    e.stopPropagation();
+                    
+                    // Visual feedback based on current section
+                    if (this.currentSection === 'upload') {
+                        dropZone.classList.add('dragover');
+                    } else {
+                        container.style.boxShadow = '0 20px 60px rgba(102, 126, 234, 0.5)';
+                        container.style.borderColor = '#667eea';
+                    }
                 });
 
-                dropZone.addEventListener('dragleave', () => {
-                    dropZone.classList.remove('dragover');
+                container.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Check if we're leaving the container entirely
+                    if (!container.contains(e.relatedTarget)) {
+                        dropZone.classList.remove('dragover');
+                        container.style.boxShadow = '';
+                        container.style.borderColor = '';
+                    }
                 });
 
-                dropZone.addEventListener('drop', (e) => {
+                container.addEventListener('drop', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Reset visual feedback
                     dropZone.classList.remove('dragover');
+                    container.style.boxShadow = '';
+                    container.style.borderColor = '';
+                    
                     const files = e.dataTransfer.files;
-                    if (files.length > 0) {
-                        this.handleFile(files[0]);
+                    if (files.length > 0 && files[0].type.match('image.*')) {
+                        // If not on upload page, confirm replacement
+                        if (this.currentSection !== 'upload') {
+                            if (confirm('Replace the current image with the new one?')) {
+                                this.handleFile(files[0]);
+                            }
+                        } else {
+                            this.handleFile(files[0]);
+                        }
                     }
                 });
 
@@ -571,6 +799,19 @@
                 document.getElementById('generateBtn').addEventListener('click', () => this.generateBuilding());
                 document.getElementById('backToRectifyBtn').addEventListener('click', () => this.showSection('rectify'));
                 document.getElementById('newImageBtn').addEventListener('click', () => this.loadNewImage());
+
+                // Settings
+                document.getElementById('settingsBtn').addEventListener('click', () => this.openSettings());
+                document.getElementById('closeSettings').addEventListener('click', () => this.closeSettings());
+                document.getElementById('settingsModal').addEventListener('click', (e) => {
+                    if (e.target === document.getElementById('settingsModal')) {
+                        this.closeSettings();
+                    }
+                });
+                document.getElementById('browseBlender').addEventListener('click', () => this.browseForBlender());
+
+                // Check Blender status on load
+                this.checkBlenderStatus();
             }
 
             showSection(section) {
@@ -1159,6 +1400,71 @@
                 const status = document.getElementById('generateStatus');
                 status.textContent = message;
                 status.className = `status ${type}`;
+            }
+
+            // Settings methods
+            openSettings() {
+                document.getElementById('settingsModal').classList.add('active');
+                this.checkBlenderStatus();
+            }
+
+            closeSettings() {
+                document.getElementById('settingsModal').classList.remove('active');
+            }
+
+            async checkBlenderStatus() {
+                const settingsBtn = document.getElementById('settingsBtn');
+
+                try {
+                    const response = await fetch('http://localhost:5555/config');
+                    const data = await response.json();
+
+                    const statusEl = document.getElementById('blenderStatus');
+                    const versionEl = document.getElementById('blenderVersion');
+
+                    if (data.blender_available) {
+                        statusEl.className = 'blender-status found';
+                        statusEl.querySelector('.status-icon').textContent = '\u2713';
+                        statusEl.querySelector('.status-text > div:first-child').textContent = 'Blender found';
+                        versionEl.textContent = data.blender_version || '';
+                        settingsBtn.className = 'settings-btn blender-ok';
+                    } else {
+                        statusEl.className = 'blender-status not-found';
+                        statusEl.querySelector('.status-icon').textContent = '\u2717';
+                        statusEl.querySelector('.status-text > div:first-child').textContent = 'Blender not found';
+                        versionEl.textContent = 'Click below to select';
+                        settingsBtn.className = 'settings-btn blender-missing';
+                    }
+                } catch (error) {
+                    console.error('Failed to check Blender status:', error);
+                    settingsBtn.className = 'settings-btn blender-missing';
+                }
+            }
+
+            async browseForBlender() {
+                const browseBtn = document.getElementById('browseBlender');
+                browseBtn.disabled = true;
+                browseBtn.textContent = 'Opening...';
+
+                try {
+                    const response = await fetch('http://localhost:5555/browse-blender', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.checkBlenderStatus();
+                    } else if (data.cancelled) {
+                        // User cancelled, do nothing
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to select Blender'));
+                    }
+                } catch (error) {
+                    alert('Error connecting to server: ' + error.message);
+                } finally {
+                    browseBtn.disabled = false;
+                    browseBtn.textContent = 'Select Blender App';
+                }
             }
         }
 

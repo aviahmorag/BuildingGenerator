@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Building Generator for Blender
-(C) 2025 Aviah Morag
-Contact: pashoshington@gmail.com
+(C) 2026 Aviah Morag
+Contact: aviah@aviahmorag.com
 
 Command-line tool to create Blender files with buildings from facade images.
 

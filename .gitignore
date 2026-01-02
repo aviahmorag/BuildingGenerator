@@ -73,3 +73,6 @@ $RECYCLE.BIN/
 test_images/
 temp_facade_*.png
 test_*.blend
+
+# Local config (contains user-specific paths)
+config.json
