@@ -6,7 +6,7 @@ Transform facade images into 3D Blender buildings with a simple web interface.
 
 | Original Photo | Rectified | 3D Model in Blender |
 |:--------------:|:---------:|:-------------------:|
-| ![Before](before.jpeg) | ![After](after.png) | ![Blender](blender.png) |
+| <img src="before.jpeg" width="250"> | <img src="after.png" width="250"> | <img src="blender.png" width="250"> |
 
 ## Features
 
