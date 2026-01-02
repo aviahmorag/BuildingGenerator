@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="application-name" content="Building Generator">
+    <meta name="description" content="Generate 3D Blender buildings from facade images">
+    <title>Building Generator - From Image to 3D</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+            max-width: 1200px;
+            width: 100%;
+            border: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .workflow-tabs {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .workflow-tab {
+            padding: 10px 20px;
+            border-radius: 20px;
+            background: #f0f0f0;
+            color: #999;
+            cursor: default;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            position: relative;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .workflow-tab::before {
+            content: '';
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #ddd;
+            background: white;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .workflow-tab.active {
+            background: #f0f2ff;
+            color: #667eea;
+        }
+
+        .workflow-tab.active::before {
+            border-color: #667eea;
+            background: #667eea;
+            box-shadow: inset 0 0 0 4px white;
+        }
+
+        .workflow-tab.completed {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .workflow-tab.completed::before {
+            border-color: #388e3c;
+            background: #388e3c;
+            content: '✓';
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .workflow-tabs::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 20%;
+            right: 20%;
+            height: 2px;
+            background: #e0e0e0;
+            z-index: -1;
+            transform: translateY(-50%);
+        }
+
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 60px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+            margin-bottom: 30px;
+        }
+
+        .drop-zone:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .drop-zone.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+
+        .drop-zone p {
+            color: #667eea;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .drop-zone span {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .canvas-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        canvas {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            cursor: crosshair;
+            max-width: 100%;
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .skip-btn {
+            background: linear-gradient(135deg, #ff9a00 0%, #ff6b6b 100%);
+        }
+
+        .reset-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .generate-btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            font-size: 1.1em;
+            padding: 14px 35px;
+        }
+
+        .instructions {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .instructions h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            color: #666;
+            line-height: 1.8;
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .building-params {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .building-params h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .param-group {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .param-group label {
+            color: #666;
+            font-weight: 500;
+            min-width: 150px;
+        }
+
+        .param-group input[type="number"] {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            width: 100px;
+        }
+
+        .param-group input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .param-group span {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .image-preview {
+            margin: 20px auto;
+            text-align: center;
+        }
+
+        .image-preview img {
+            max-width: 500px;
+            max-height: 400px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .copyright {
+            text-align: center;
+            color: #999;
+            font-size: 0.85em;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .copyright a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .copyright a:hover {
+            text-decoration: underline;
+        }
+
+        .process-status {
+            background: #f0f2ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .process-status h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .process-status .output-log {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Settings styles */
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .settings-btn {
+            background: #f0f0f0;
+            color: #666;
+            padding: 8px 16px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .settings-btn:hover {
+            background: #e0e0e0;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .settings-btn .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .settings-btn.blender-ok .status-dot {
+            background: #4caf50;
+        }
+
+        .settings-btn.blender-missing .status-dot {
+            background: #f44336;
+        }
+
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .settings-modal.active {
+            display: flex;
+        }
+
+        .settings-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .settings-header h2 {
+            color: #333;
+            margin: 0;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #999;
+            padding: 5px;
+        }
+
+        .close-btn:hover {
+            color: #333;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .setting-group {
+            margin-bottom: 20px;
+        }
+
+        .setting-group label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .blender-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .blender-status.found {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .blender-status.not-found {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .blender-status .status-icon {
+            font-size: 1.2em;
+        }
+
+        .blender-status .status-text {
+            flex: 1;
+        }
+
+        .blender-status .version {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+
+        .path-input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .path-input-group input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        .path-input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .browse-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            white-space: nowrap;
+        }
+
+        .save-path-btn {
+            background: #4caf50;
+            margin-top: 10px;
+        }
+
+        .setting-hint {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-row">
+            <div></div>
+            <h1>Building Generator</h1>
+            <button class="settings-btn" id="settingsBtn"><span class="status-dot"></span>Settings</button>
+        </div>
+        <p class="subtitle">Transform facade images into 3D Blender buildings with textures</p>
+
+        <div class="workflow-tabs">
+            <div class="workflow-tab active" id="tab-upload">1. Upload Image</div>
+            <div class="workflow-tab" id="tab-rectify">2. Rectify (Optional)</div>
+            <div class="workflow-tab" id="tab-generate">3. Generate Building</div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="section active" id="section-upload">
+            <div class="instructions">
+                <h3>Step 1: Upload your facade image</h3>
+                <ol>
+                    <li>Choose an image of a building facade</li>
+                    <li>The image will be used as texture for all 4 sides of the building</li>
+                    <li>Works best with rectangular facade images</li>
+                </ol>
+            </div>
+
+            <div class="drop-zone" id="dropZone">
+                <p>📁 Drop your facade image here</p>
+                <span>or click to browse (PNG, JPG, JPEG)</span>
+            </div>
+            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/jpg">
+        </div>
+
+        <!-- Rectify Section -->
+        <div class="section" id="section-rectify">
+            <div class="instructions">
+                <h3>Step 2: Rectify your image (Optional)</h3>
+                <ol>
+                    <li>If your facade is not rectangular, you can transform it</li>
+                    <li>Click on 4 corners of the facade</li>
+                    <li>Transform it to a perfect rectangle</li>
+                    <li>Or skip this step if your image is already rectangular</li>
+                </ol>
+            </div>
+
+            <div class="canvas-container">
+                <canvas id="canvas"></canvas>
+            </div>
+
+            <div class="controls">
+                <button id="transformBtn" disabled>Transform to Rectangle</button>
+                <button id="resetBtn" class="reset-btn">Reset Points</button>
+                <button id="skipRectifyBtn" class="skip-btn">Skip Rectification</button>
+                <button id="useRectifiedBtn" class="generate-btn" disabled>Use Rectified Image</button>
+            </div>
+
+            <div id="rectifyStatus" class="status hidden"></div>
+        </div>
+
+        <!-- Generate Section -->
+        <div class="section" id="section-generate">
+            <div class="instructions">
+                <h3>Step 3: Generate your 3D building</h3>
+                <ol>
+                    <li>Set the building dimensions</li>
+                    <li>Click "Generate 3D Building"</li>
+                    <li>Two files will be saved to your Downloads folder:</li>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>A .blend file (3D model for Blender)</li>
+                        <li>A .png texture file (facade image)</li>
+                    </ul>
+                </ol>
+            </div>
+
+            <div class="image-preview" id="imagePreview"></div>
+
+            <div class="building-params">
+                <h3>Building Parameters</h3>
+                <div class="param-group">
+                    <label for="buildingWidth">Building Width:</label>
+                    <input type="number" id="buildingWidth" value="12" min="1" max="100" step="0.5">
+                    <span>meters</span>
+                </div>
+                <div class="param-group">
+                    <label for="buildingDepth">Building Depth:</label>
+                    <input type="number" id="buildingDepth" value="12" min="1" max="100" step="0.5">
+                    <span>meters</span>
+                </div>
+                <div class="param-group">
+                    <label for="outputFileName">Output Filename:</label>
+                    <input type="text" id="outputFileName" style="width: 300px; padding: 8px 12px; border: 2px solid #ddd; border-radius: 8px;" placeholder="building.blend">
+                    <span style="font-size: 0.85em; color: #666;">(+ matching .png texture)</span>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="backToRectifyBtn">← Back to Rectify</button>
+                <button id="generateBtn" class="generate-btn">🎯 Generate 3D Building</button>
+                <button id="newImageBtn">📁 Load New Image</button>
+            </div>
+
+            <div class="process-status hidden" id="processStatus">
+                <h3><span class="spinner"></span>Generating Building...</h3>
+                <div class="output-log" id="outputLog"></div>
+            </div>
+
+            <div id="generateStatus" class="status hidden"></div>
+        </div>
+
+        <div class="copyright">
+            Powered by perspective transformation and Blender Python API
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="settings-modal" id="settingsModal">
+        <div class="settings-content">
+            <div class="settings-header">
+                <h2>Settings</h2>
+                <button class="close-btn" id="closeSettings">&times;</button>
+            </div>
+
+            <div class="setting-group">
+                <label>Blender Application</label>
+                <div class="blender-status not-found" id="blenderStatus">
+                    <span class="status-icon">?</span>
+                    <div class="status-text">
+                        <div>Checking...</div>
+                        <div class="version" id="blenderVersion"></div>
+                    </div>
+                </div>
+                <button class="browse-btn" id="browseBlender">Select Blender App</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class BuildingGenerator {
+            constructor() {
+                this.currentSection = 'upload';
+                this.originalImage = null;
+                this.processedImage = null;
+                this.imageDataUrl = null;
+                this.originalFileName = '';
+                
+                // Rectifier properties
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.points = [];
+                this.transformed = false;
+                this.transformedImageData = null;
+                this.isDragging = false;
+                this.dragIndex = -1;
+                this.hoveredPoint = -1;
+                
+                this.initializeEventListeners();
+            }
+
+            initializeEventListeners() {
+                // Tab navigation - removed since tabs are no longer clickable
+
+                // Upload section
+                const dropZone = document.getElementById('dropZone');
+                const fileInput = document.getElementById('fileInput');
+                
+                dropZone.addEventListener('click', () => fileInput.click());
+                
+                // Global drag and drop on the entire container
+                const container = document.querySelector('.container');
+                
+                container.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Visual feedback based on current section
+                    if (this.currentSection === 'upload') {
+                        dropZone.classList.add('dragover');
+                    } else {
+                        container.style.boxShadow = '0 20px 60px rgba(102, 126, 234, 0.5)';
+                        container.style.borderColor = '#667eea';
+                    }
+                });
+
+                container.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Check if we're leaving the container entirely
+                    if (!container.contains(e.relatedTarget)) {
+                        dropZone.classList.remove('dragover');
+                        container.style.boxShadow = '';
+                        container.style.borderColor = '';
+                    }
+                });
+
+                container.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Reset visual feedback
+                    dropZone.classList.remove('dragover');
+                    container.style.boxShadow = '';
+                    container.style.borderColor = '';
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0 && files[0].type.match('image.*')) {
+                        // If not on upload page, confirm replacement
+                        if (this.currentSection !== 'upload') {
+                            if (confirm('Replace the current image with the new one?')) {
+                                this.handleFile(files[0]);
+                            }
+                        } else {
+                            this.handleFile(files[0]);
+                        }
+                    }
+                });
+
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.handleFile(e.target.files[0]);
+                    }
+                });
+
+                // Rectify section
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+                this.canvas.addEventListener('mouseleave', (e) => this.handleMouseLeave(e));
+                
+                document.getElementById('transformBtn').addEventListener('click', () => this.transformImage());
+                document.getElementById('resetBtn').addEventListener('click', () => this.resetPoints());
+                document.getElementById('skipRectifyBtn').addEventListener('click', () => this.skipRectification());
+                document.getElementById('useRectifiedBtn').addEventListener('click', () => this.useRectifiedImage());
+
+                // Generate section
+                document.getElementById('generateBtn').addEventListener('click', () => this.generateBuilding());
+                document.getElementById('backToRectifyBtn').addEventListener('click', () => this.showSection('rectify'));
+                document.getElementById('newImageBtn').addEventListener('click', () => this.loadNewImage());
+
+                // Settings
+                document.getElementById('settingsBtn').addEventListener('click', () => this.openSettings());
+                document.getElementById('closeSettings').addEventListener('click', () => this.closeSettings());
+                document.getElementById('settingsModal').addEventListener('click', (e) => {
+                    if (e.target === document.getElementById('settingsModal')) {
+                        this.closeSettings();
+                    }
+                });
+                document.getElementById('browseBlender').addEventListener('click', () => this.browseForBlender());
+
+                // Check Blender status on load
+                this.checkBlenderStatus();
+            }
+
+            showSection(section) {
+                // Update sections
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                document.getElementById(`section-${section}`).classList.add('active');
+                
+                // Update tabs
+                document.querySelectorAll('.workflow-tab').forEach(t => t.classList.remove('active'));
+                document.getElementById(`tab-${section}`).classList.add('active');
+                
+                // Mark completed tabs
+                if (section === 'rectify' && this.originalImage) {
+                    document.getElementById('tab-upload').classList.add('completed');
+                }
+                if (section === 'generate' && this.processedImage) {
+                    document.getElementById('tab-rectify').classList.add('completed');
+                }
+                
+                this.currentSection = section;
+                
+                // Initialize rectify canvas when entering that section
+                if (section === 'rectify' && this.originalImage && !this.canvas.width) {
+                    this.loadImageToCanvas(this.originalImage);
+                }
+                
+                // Show preview in generate section
+                if (section === 'generate' && this.processedImage) {
+                    this.showImagePreview();
+                }
+            }
+
+            handleFile(file) {
+                if (!file.type.match('image.*')) {
+                    alert('Please select an image file');
+                    return;
+                }
+
+                this.originalFileName = file.name;
+                
+                // Update default output filename
+                const nameWithoutExt = this.originalFileName.replace(/\.[^/.]+$/, "");
+                document.getElementById('outputFileName').value = nameWithoutExt + '.blend';
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.originalImage = img;
+                        this.processedImage = img; // Initially, processed is same as original
+                        this.imageDataUrl = e.target.result;
+                        this.showSection('rectify');
+                        this.loadImageToCanvas(img);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            loadImageToCanvas(img) {
+                this.points = [];
+                this.transformed = false;
+                
+                const maxWidth = 800;
+                const maxHeight = 600;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    height = (maxWidth / width) * height;
+                    width = maxWidth;
+                }
+                if (height > maxHeight) {
+                    width = (maxHeight / height) * width;
+                    height = maxHeight;
+                }
+
+                this.canvas.width = width;
+                this.canvas.height = height;
+                this.ctx.drawImage(img, 0, 0, width, height);
+                
+                this.showRectifyStatus('Click on 4 corners to define the facade region, or skip if already rectangular', 'info');
+                this.updateRectifyButtons();
+            }
+
+            // Mouse handling methods (same as in image-rectifier.html)
+            handleMouseDown(e) {
+                if (this.transformed) return;
+
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const pointIndex = this.getPointAt(x, y);
+                
+                if (pointIndex !== -1) {
+                    this.isDragging = true;
+                    this.dragIndex = pointIndex;
+                    this.canvas.style.cursor = 'grabbing';
+                } else if (this.points.length < 4) {
+                    this.points.push({ x, y });
+                    this.drawPoints();
+                    
+                    if (this.points.length === 4) {
+                        this.showRectifyStatus('4 corners selected. Drag to adjust or click "Transform to Rectangle"', 'success');
+                    } else {
+                        this.showRectifyStatus(`${this.points.length}/4 corners selected`, 'info');
+                    }
+                    
+                    this.updateRectifyButtons();
+                }
+            }
+
+            handleMouseMove(e) {
+                if (this.transformed) {
+                    this.canvas.style.cursor = 'default';
+                    return;
+                }
+
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                if (this.isDragging && this.dragIndex !== -1) {
+                    this.points[this.dragIndex] = { x, y };
+                    this.drawPoints();
+                } else {
+                    const pointIndex = this.getPointAt(x, y);
+                    if (pointIndex !== -1) {
+                        this.canvas.style.cursor = 'grab';
+                        if (this.hoveredPoint !== pointIndex) {
+                            this.hoveredPoint = pointIndex;
+                            this.drawPoints();
+                        }
+                    } else {
+                        if (this.points.length < 4) {
+                            this.canvas.style.cursor = 'crosshair';
+                        } else {
+                            this.canvas.style.cursor = 'default';
+                        }
+                        if (this.hoveredPoint !== -1) {
+                            this.hoveredPoint = -1;
+                            this.drawPoints();
+                        }
+                    }
+                }
+            }
+
+            handleMouseUp(e) {
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    this.dragIndex = -1;
+                    this.canvas.style.cursor = 'grab';
+                }
+            }
+
+            handleMouseLeave(e) {
+                if (this.transformed) {
+                    this.canvas.style.cursor = 'default';
+                    return;
+                }
+                
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    this.dragIndex = -1;
+                }
+                this.hoveredPoint = -1;
+                this.canvas.style.cursor = 'default';
+                this.drawPoints();
+            }
+
+            getPointAt(x, y) {
+                const threshold = 12;
+                for (let i = 0; i < this.points.length; i++) {
+                    const dx = x - this.points[i].x;
+                    const dy = y - this.points[i].y;
+                    if (Math.sqrt(dx * dx + dy * dy) < threshold) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+
+            drawPoints() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.drawImage(this.originalImage, 0, 0, this.canvas.width, this.canvas.height);
+
+                if (this.points.length === 0) return;
+
+                this.ctx.strokeStyle = '#667eea';
+                this.ctx.lineWidth = 3;
+
+                // Draw connecting lines
+                for (let i = 0; i < this.points.length; i++) {
+                    if (i > 0) {
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(this.points[i - 1].x, this.points[i - 1].y);
+                        this.ctx.lineTo(this.points[i].x, this.points[i].y);
+                        this.ctx.stroke();
+                    }
+                }
+
+                if (this.points.length === 4) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.points[3].x, this.points[3].y);
+                    this.ctx.lineTo(this.points[0].x, this.points[0].y);
+                    this.ctx.stroke();
+                }
+
+                // Draw points with hover effect
+                for (let i = 0; i < this.points.length; i++) {
+                    const point = this.points[i];
+                    const isHovered = i === this.hoveredPoint;
+                    const isDragged = i === this.dragIndex && this.isDragging;
+                    
+                    const outerRadius = isHovered || isDragged ? 10 : 8;
+                    
+                    if (isHovered || isDragged) {
+                        this.ctx.shadowColor = 'rgba(102, 126, 234, 0.5)';
+                        this.ctx.shadowBlur = 10;
+                    }
+                    
+                    this.ctx.fillStyle = isDragged ? '#764ba2' : '#667eea';
+                    this.ctx.beginPath();
+                    this.ctx.arc(point.x, point.y, outerRadius, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                    
+                    this.ctx.shadowBlur = 0;
+                    
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.beginPath();
+                    this.ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                }
+            }
+
+            transformImage() {
+                if (this.points.length !== 4) return;
+
+                const srcPoints = this.points.map(p => ({
+                    x: p.x * (this.originalImage.width / this.canvas.width),
+                    y: p.y * (this.originalImage.height / this.canvas.height)
+                }));
+
+                const sortedPoints = this.sortPointsIntoCorners(srcPoints);
+
+                const topWidth = this.distance(sortedPoints[0], sortedPoints[1]);
+                const bottomWidth = this.distance(sortedPoints[3], sortedPoints[2]);
+                const leftHeight = this.distance(sortedPoints[0], sortedPoints[3]);
+                const rightHeight = this.distance(sortedPoints[1], sortedPoints[2]);
+                
+                const avgWidth = (topWidth + bottomWidth) / 2;
+                const avgHeight = (leftHeight + rightHeight) / 2;
+                
+                let outputWidth = Math.min(avgWidth, 1200);
+                let outputHeight = Math.min(avgHeight, 900);
+                
+                const aspectRatio = avgWidth / avgHeight;
+                if (outputWidth / outputHeight > aspectRatio) {
+                    outputWidth = outputHeight * aspectRatio;
+                } else {
+                    outputHeight = outputWidth / aspectRatio;
+                }
+
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = Math.round(outputWidth);
+                tempCanvas.height = Math.round(outputHeight);
+
+                const dstPoints = [
+                    { x: 0, y: 0 },
+                    { x: outputWidth, y: 0 },
+                    { x: outputWidth, y: outputHeight },
+                    { x: 0, y: outputHeight }
+                ];
+
+                this.perspectiveTransform(this.originalImage, sortedPoints, dstPoints, tempCanvas);
+
+                this.canvas.width = tempCanvas.width;
+                this.canvas.height = tempCanvas.height;
+                this.ctx.drawImage(tempCanvas, 0, 0);
+                
+                this.transformedImageData = tempCanvas.toDataURL('image/png');
+                this.transformed = true;
+                
+                // Create an Image object from the transformed data
+                const img = new Image();
+                img.onload = () => {
+                    this.processedImage = img;
+                };
+                img.src = this.transformedImageData;
+                
+                this.showRectifyStatus('Image transformed successfully! Click "Use Rectified Image" to continue.', 'success');
+                this.updateRectifyButtons();
+            }
+
+            sortPointsIntoCorners(points) {
+                const centroid = {
+                    x: points.reduce((sum, p) => sum + p.x, 0) / 4,
+                    y: points.reduce((sum, p) => sum + p.y, 0) / 4
+                };
+
+                const classified = points.map(p => ({
+                    ...p,
+                    angle: Math.atan2(p.y - centroid.y, p.x - centroid.x)
+                }));
+
+                classified.sort((a, b) => a.angle - b.angle);
+
+                let minSum = Infinity;
+                let topLeftIndex = 0;
+                for (let i = 0; i < 4; i++) {
+                    const sum = classified[i].x + classified[i].y;
+                    if (sum < minSum) {
+                        minSum = sum;
+                        topLeftIndex = i;
+                    }
+                }
+
+                const ordered = [];
+                for (let i = 0; i < 4; i++) {
+                    const idx = (topLeftIndex + i) % 4;
+                    ordered.push({
+                        x: classified[idx].x,
+                        y: classified[idx].y
+                    });
+                }
+
+                return ordered;
+            }
+
+            distance(p1, p2) {
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            perspectiveTransform(sourceImg, srcCorners, dstCorners, outputCanvas) {
+                const ctx = outputCanvas.getContext('2d');
+                const width = outputCanvas.width;
+                const height = outputCanvas.height;
+
+                const matrix = this.getPerspectiveTransform(dstCorners, srcCorners);
+
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = sourceImg.width;
+                tempCanvas.height = sourceImg.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(sourceImg, 0, 0);
+                const sourceData = tempCtx.getImageData(0, 0, sourceImg.width, sourceImg.height);
+
+                const outputData = ctx.createImageData(width, height);
+
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const srcPoint = this.transformPoint(x, y, matrix);
+                        
+                        if (srcPoint.x >= 0 && srcPoint.x < sourceImg.width - 1 &&
+                            srcPoint.y >= 0 && srcPoint.y < sourceImg.height - 1) {
+                            
+                            const x0 = Math.floor(srcPoint.x);
+                            const y0 = Math.floor(srcPoint.y);
+                            const x1 = x0 + 1;
+                            const y1 = y0 + 1;
+                            
+                            const fx = srcPoint.x - x0;
+                            const fy = srcPoint.y - y0;
+                            
+                            const idx00 = (y0 * sourceImg.width + x0) * 4;
+                            const idx10 = (y0 * sourceImg.width + x1) * 4;
+                            const idx01 = (y1 * sourceImg.width + x0) * 4;
+                            const idx11 = (y1 * sourceImg.width + x1) * 4;
+                            
+                            const outputIdx = (y * width + x) * 4;
+                            
+                            for (let c = 0; c < 4; c++) {
+                                const v00 = sourceData.data[idx00 + c];
+                                const v10 = sourceData.data[idx10 + c];
+                                const v01 = sourceData.data[idx01 + c];
+                                const v11 = sourceData.data[idx11 + c];
+                                
+                                const v0 = v00 * (1 - fx) + v10 * fx;
+                                const v1 = v01 * (1 - fx) + v11 * fx;
+                                outputData.data[outputIdx + c] = v0 * (1 - fy) + v1 * fy;
+                            }
+                        }
+                    }
+                }
+
+                ctx.putImageData(outputData, 0, 0);
+            }
+
+            getPerspectiveTransform(src, dst) {
+                const A = [];
+                const b = [];
+
+                for (let i = 0; i < 4; i++) {
+                    A.push([src[i].x, src[i].y, 1, 0, 0, 0, -dst[i].x * src[i].x, -dst[i].x * src[i].y]);
+                    A.push([0, 0, 0, src[i].x, src[i].y, 1, -dst[i].y * src[i].x, -dst[i].y * src[i].y]);
+                    b.push(dst[i].x);
+                    b.push(dst[i].y);
+                }
+
+                const h = this.solve(A, b);
+                return [
+                    [h[0], h[1], h[2]],
+                    [h[3], h[4], h[5]],
+                    [h[6], h[7], 1]
+                ];
+            }
+
+            solve(A, b) {
+                const n = A.length;
+                const Ab = A.map((row, i) => [...row, b[i]]);
+
+                for (let i = 0; i < n; i++) {
+                    let maxRow = i;
+                    for (let k = i + 1; k < n; k++) {
+                        if (Math.abs(Ab[k][i]) > Math.abs(Ab[maxRow][i])) {
+                            maxRow = k;
+                        }
+                    }
+                    [Ab[i], Ab[maxRow]] = [Ab[maxRow], Ab[i]];
+
+                    for (let k = i + 1; k < n; k++) {
+                        const c = Ab[k][i] / Ab[i][i];
+                        for (let j = i; j < n + 1; j++) {
+                            if (i === j) {
+                                Ab[k][j] = 0;
+                            } else {
+                                Ab[k][j] -= c * Ab[i][j];
+                            }
+                        }
+                    }
+                }
+
+                const x = new Array(n);
+                for (let i = n - 1; i >= 0; i--) {
+                    x[i] = Ab[i][n] / Ab[i][i];
+                    for (let k = i - 1; k >= 0; k--) {
+                        Ab[k][n] -= Ab[k][i] * x[i];
+                    }
+                }
+                return x;
+            }
+
+            transformPoint(x, y, matrix) {
+                const w = matrix[2][0] * x + matrix[2][1] * y + matrix[2][2];
+                return {
+                    x: (matrix[0][0] * x + matrix[0][1] * y + matrix[0][2]) / w,
+                    y: (matrix[1][0] * x + matrix[1][1] * y + matrix[1][2]) / w
+                };
+            }
+
+            resetPoints() {
+                this.points = [];
+                this.transformed = false;
+                this.drawPoints();
+                this.showRectifyStatus('Points reset. Click on 4 corners to define the facade region', 'info');
+                this.updateRectifyButtons();
+            }
+
+            skipRectification() {
+                this.processedImage = this.originalImage;
+                this.imageDataUrl = this.originalImage.src;
+                this.showSection('generate');
+            }
+
+            useRectifiedImage() {
+                if (this.transformed && this.transformedImageData) {
+                    this.imageDataUrl = this.transformedImageData;
+                    this.showSection('generate');
+                }
+            }
+
+            showImagePreview() {
+                const preview = document.getElementById('imagePreview');
+                preview.innerHTML = '';
+                
+                const img = document.createElement('img');
+                img.src = this.imageDataUrl;
+                preview.appendChild(img);
+            }
+
+            async generateBuilding() {
+                const width = parseFloat(document.getElementById('buildingWidth').value);
+                const depth = parseFloat(document.getElementById('buildingDepth').value);
+                const outputFileName = document.getElementById('outputFileName').value || 'building.blend';
+                
+                // Show processing status
+                document.getElementById('processStatus').classList.remove('hidden');
+                document.getElementById('outputLog').textContent = 'Starting building generation...';
+                document.getElementById('generateBtn').disabled = true;
+                
+                try {
+                    // Save the rectified facade image with proper name
+                    const baseFileName = outputFileName.replace('.blend', '');
+                    const rectifiedImageName = `${baseFileName}-rect.png`;
+                    const imageLink = document.createElement('a');
+                    imageLink.download = rectifiedImageName;
+                    imageLink.href = this.imageDataUrl;
+                    imageLink.click();
+                    
+                    // Send request to server
+                    const requestData = {
+                        image: this.imageDataUrl,
+                        width: width,
+                        depth: depth,
+                        output: outputFileName,
+                        originalFileName: this.originalFileName
+                    };
+                    
+                    const response = await fetch('http://localhost:5555/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestData)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        document.getElementById('outputLog').textContent = result.log || `Success! Building saved to Downloads folder as ${outputFileName}`;
+                        this.showGenerateStatus(`✅ Building generated successfully! Check your Downloads folder for ${outputFileName}`, 'success');
+                        
+                        // If blend_data is provided (for small files), offer download
+                        if (result.blend_data) {
+                            const link = document.createElement('a');
+                            link.download = outputFileName;
+                            link.href = 'data:application/octet-stream;base64,' + result.blend_data;
+                            link.click();
+                        }
+                    } else {
+                        const errorDetails = result.stdout || result.stderr || '';
+                        document.getElementById('outputLog').textContent = `Error: ${result.error}\n\n${errorDetails}`;
+                        this.showGenerateStatus('Error generating building. Check the log above for details.', 'error');
+                    }
+                    
+                } catch (error) {
+                    document.getElementById('outputLog').textContent = `Connection error: ${error.message}\n\nMake sure the server is running (launch.sh or building_generator_server.py)`;
+                    this.showGenerateStatus('Error: Could not connect to server. Is it running?', 'error');
+                } finally {
+                    document.getElementById('generateBtn').disabled = false;
+                    setTimeout(() => {
+                        document.getElementById('processStatus').classList.add('hidden');
+                    }, 10000);
+                }
+            }
+
+            loadNewImage() {
+                this.originalImage = null;
+                this.processedImage = null;
+                this.imageDataUrl = null;
+                this.points = [];
+                this.transformed = false;
+                this.transformedImageData = null;
+                this.originalFileName = '';
+                
+                document.getElementById('fileInput').value = '';
+                this.showSection('upload');
+                
+                // Reset all statuses
+                document.getElementById('rectifyStatus').classList.add('hidden');
+                document.getElementById('generateStatus').classList.add('hidden');
+                document.getElementById('processStatus').classList.add('hidden');
+                
+                // Reset tabs
+                document.querySelectorAll('.workflow-tab').forEach(t => t.classList.remove('completed'));
+            }
+
+            updateRectifyButtons() {
+                const transformBtn = document.getElementById('transformBtn');
+                const useRectifiedBtn = document.getElementById('useRectifiedBtn');
+                
+                transformBtn.disabled = this.points.length !== 4 || this.transformed;
+                useRectifiedBtn.disabled = !this.transformed;
+            }
+
+            showRectifyStatus(message, type) {
+                const status = document.getElementById('rectifyStatus');
+                status.textContent = message;
+                status.className = `status ${type}`;
+            }
+
+            showGenerateStatus(message, type) {
+                const status = document.getElementById('generateStatus');
+                status.textContent = message;
+                status.className = `status ${type}`;
+            }
+
+            // Settings methods
+            openSettings() {
+                document.getElementById('settingsModal').classList.add('active');
+                this.checkBlenderStatus();
+            }
+
+            closeSettings() {
+                document.getElementById('settingsModal').classList.remove('active');
+            }
+
+            async checkBlenderStatus() {
+                const settingsBtn = document.getElementById('settingsBtn');
+
+                try {
+                    const response = await fetch('http://localhost:5555/config');
+                    const data = await response.json();
+
+                    const statusEl = document.getElementById('blenderStatus');
+                    const versionEl = document.getElementById('blenderVersion');
+
+                    if (data.blender_available) {
+                        statusEl.className = 'blender-status found';
+                        statusEl.querySelector('.status-icon').textContent = '\u2713';
+                        statusEl.querySelector('.status-text > div:first-child').textContent = 'Blender found';
+                        versionEl.textContent = data.blender_version || '';
+                        settingsBtn.className = 'settings-btn blender-ok';
+                    } else {
+                        statusEl.className = 'blender-status not-found';
+                        statusEl.querySelector('.status-icon').textContent = '\u2717';
+                        statusEl.querySelector('.status-text > div:first-child').textContent = 'Blender not found';
+                        versionEl.textContent = 'Click below to select';
+                        settingsBtn.className = 'settings-btn blender-missing';
+                    }
+                } catch (error) {
+                    console.error('Failed to check Blender status:', error);
+                    settingsBtn.className = 'settings-btn blender-missing';
+                }
+            }
+
+            async browseForBlender() {
+                const browseBtn = document.getElementById('browseBlender');
+                browseBtn.disabled = true;
+                browseBtn.textContent = 'Opening...';
+
+                try {
+                    const response = await fetch('http://localhost:5555/browse-blender', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.checkBlenderStatus();
+                    } else if (data.cancelled) {
+                        // User cancelled, do nothing
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to select Blender'));
+                    }
+                } catch (error) {
+                    alert('Error connecting to server: ' + error.message);
+                } finally {
+                    browseBtn.disabled = false;
+                    browseBtn.textContent = 'Select Blender App';
+                }
+            }
+        }
+
+        const generator = new BuildingGenerator();
+    </script>
+</body>
+</html>
